@@ -1294,6 +1294,12 @@ func PostSubscriberByID(c *gin.Context) {
 		})
 		return
 	}
+
+	if c.Param("userNumber") != "" {
+		postBulkSubscriberByID(c, &subsData, claims)
+		return
+	}
+
 	ueId := strings.Split(c.Param("ueId"), "-")[1]
 	servingPlmnId := c.Param("servingPlmnId")
 	userNumber := c.Param("userNumber")

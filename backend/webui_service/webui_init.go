@@ -100,6 +100,10 @@ func (a *WebuiApp) Start(tlsKeyLogPath string) {
 		logger.InitLog.Errorf("Server start err: %+v", err)
 		return
 	}
+	if err := WebUI.EnsureSubscriberIndexes(); err != nil {
+		logger.InitLog.Errorf("Create subscriber indexes err: %+v", err)
+		return
+	}
 
 	logger.InitLog.Infoln("Server started")
 

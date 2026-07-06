@@ -24,9 +24,6 @@ import { FlowsMapperImpl as SubscriptionFlowsMapperImpl, SubscriptionMapperImpl 
 import { FlowsMapperImpl as ProfileFlowsMapperImpl, ProfileMapperImpl } from "../../lib/dtos/profile";
 import { validateSubscription } from "../../lib/validator/subscriptionValidator";
 
-// Max concurrent requests per batch. Keeps browser + server from being overwhelmed.
-const BATCH_SIZE = 300;
-
 function FormHOC(Component: React.ComponentType<any>) {
   return function (props: any) {
     return (
@@ -51,13 +48,13 @@ function SubscriberCreate() {
   const [profiles, setProfiles] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState("");
 
-  // FIX: track batch creation progress
+  // Track server-side bulk creation progress.
   const [createProgress, setCreateProgress] = useState<{
     current: number;
     total: number;
   } | null>(null);
 
-  // FIX: accumulate per-subscriber errors to show summary at the end
+  // Show create errors without leaving the form.
   const [createErrors, setCreateErrors] = useState<string[]>([]);
 
   const { handleSubmit, getValues, reset } = useSubscriptionForm();
@@ -94,31 +91,6 @@ function SubscriberCreate() {
     return <div>Loading...</div>;
   }
 
-  const supiIncrement = (supi: string): string => {
-    const imsi = supi.split("-", 2);
-    if (imsi.length !== 2) {
-      return supi;
-    }
-    let number = Number(imsi[1]);
-    number += 1;
-    return "imsi-" + number;
-  };
-
-  // FIX: async onCreate with batched requests and progress tracking.
-  //
-  // Root cause of Issue #158:
-  //   The original loop fired ALL axios.post() calls synchronously without
-  //   awaiting, creating thousands of concurrent requests. This overwhelmed
-  //   the browser networking stack and the backend, causing a "Network Error".
-  //   Additionally, navigation("/subscriber") was called inside every .then(),
-  //   so the component unmounted after the first success while hundreds/thousands
-  //   of in-flight requests continued updating dead state.
-  //
-  // Fix:
-  //   1. Process requests in controlled batches of BATCH_SIZE using Promise.allSettled.
-  //   2. Navigate exactly once after all batches complete.
-  //   3. Track and display progress so the user knows the operation is running.
-  //   4. Collect per-request errors and show a summary instead of spamming alerts.
   const onCreate = async () => {
     console.log("trace: onCreate");
 
@@ -141,61 +113,32 @@ function SubscriberCreate() {
     const total = subscription.userNumber!;
     setCreateErrors([]);
     setCreateProgress({ current: 0, total });
-    // NOTE: do NOT set setLoading(true) here — loading is only for edit mode
-    // (fetching existing subscriber). Setting it here causes the component to
-    // return <div>Loading...</div> which hides the form and progress bar.
 
-    // Build the full list of (supi, payload) pairs upfront so the loop body
-    // is free of mutation side effects.
-    const tasks: Array<{ supi: string; payload: typeof subscription }> = [];
-    let supi = subscription.ueId;
-    for (let i = 0; i < total; i++) {
-      tasks.push({ supi, payload: { ...subscription, ueId: supi } });
-      supi = supiIncrement(supi);
-    }
-
-    const errors: string[] = [];
-    let completed = 0;
-
-    // Process in batches to cap concurrency.
-    for (let batchStart = 0; batchStart < tasks.length; batchStart += BATCH_SIZE) {
-      const batch = tasks.slice(batchStart, batchStart + BATCH_SIZE);
-
-      const results = await Promise.allSettled(
-        batch.map(({ supi: taskSupi, payload }) =>
-          axios.post(
-            "/api/subscriber/" + taskSupi + "/" + payload.plmnID,
-            payload
-          )
-        )
+    try {
+      const createURL =
+        "/api/subscriber/" +
+        subscription.ueId +
+        "/" +
+        subscription.plmnID +
+        "/" +
+        total;
+      const res = await axios.post(
+        createURL,
+        subscription
       );
-
-      results.forEach((result, idx) => {
-        completed += 1;
-        if (result.status === "rejected") {
-          const err = result.reason;
-          const taskSupi = batch[idx].supi;
-          if (err.response) {
-            const msg = `${taskSupi} — HTTP ${err.response.status}${
-              err.response.data?.cause ? ": " + err.response.data.cause : ""
-            }`;
-            errors.push(msg);
-          } else {
-            errors.push(`${taskSupi} — ${err.message}`);
-          }
-        }
-      });
-
-      setCreateProgress({ current: completed, total });
-    }
-
-    setCreateProgress(null);
-
-    if (errors.length > 0) {
-      setCreateErrors(errors);
-      // Don't navigate — let the user see which subscribers failed.
-    } else {
+      setCreateProgress({ current: res.data?.created ?? total, total });
       navigation("/subscriber");
+    } catch (err: any) {
+      if (err.response) {
+        const msg = `HTTP ${err.response.status}${
+          err.response.data?.cause ? ": " + err.response.data.cause : ""
+        }`;
+        setCreateErrors([msg]);
+      } else {
+        setCreateErrors([err.message]);
+      }
+    } finally {
+      setCreateProgress(null);
     }
   };
 
@@ -325,7 +268,7 @@ function SubscriberCreate() {
 
         <br />
 
-        {/* FIX: progress bar shown during batch creation */}
+        {/* Progress bar shown while the server creates the requested range */}
         {isCreating && (
           <Grid item xs={12} sx={{ mb: 2 }}>
             <Typography variant="body2" sx={{ mb: 0.5 }}>
@@ -335,7 +278,7 @@ function SubscriberCreate() {
           </Grid>
         )}
 
-        {/* FIX: error summary shown after partial/full failure */}
+        {/* Error summary shown after create failure */}
         {createErrors.length > 0 && (
           <Grid item xs={12} sx={{ mb: 2 }}>
             <Alert severity="error">
