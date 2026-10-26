@@ -1294,6 +1294,9 @@ func PostSubscriberByID(c *gin.Context) {
 		})
 		return
 	}
+	if !validateSubscriberInternalGroupIdsForWrite(c, &subsData) {
+		return
+	}
 	ueId := strings.Split(c.Param("ueId"), "-")[1]
 	servingPlmnId := c.Param("servingPlmnId")
 	userNumber := c.Param("userNumber")
@@ -1763,6 +1766,9 @@ func PutSubscriberByID(c *gin.Context) {
 		})
 		return
 	}
+	if !validateSubscriberInternalGroupIdsForWrite(c, &subsData) {
+		return
+	}
 	ueId := c.Param("ueId")
 	servingPlmnId := c.Param("servingPlmnId")
 	amData, exists, ok := authorizeSubscriberIfExists(c, ueId, servingPlmnId)
@@ -1815,6 +1821,9 @@ func PatchSubscriberByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"cause": "JSON format incorrect",
 		})
+		return
+	}
+	if !validateSubscriberInternalGroupIdsForWrite(c, &subsData) {
 		return
 	}
 

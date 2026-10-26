@@ -13,6 +13,23 @@ import {
 } from "../../api";
 import { DEFAULT_5QI } from "../const";
 
+// Group service identifier ("DS" in ASCII) reserved for DualSteer group IDs.
+const DUAL_STEER_GROUP_SERVICE_ID = "00004453";
+
+// TS 29.571 GroupId: <group service identifier>-<MCC>-<MNC>-<local group ID>.
+// Mirrors dualSteerGroupIdPattern in the backend.
+export const dualSteerGroupIdSchema = z
+  .string()
+  .regex(
+    new RegExp(`^${DUAL_STEER_GROUP_SERVICE_ID}-[0-9]{3}-[0-9]{2,3}-([A-Fa-f0-9]{2}){1,10}$`),
+    {
+      message: `DualSteer group ID must be ${DUAL_STEER_GROUP_SERVICE_ID}-<MCC>-<MNC>-<local group ID hex>`,
+    },
+  );
+
+const isDualSteerGroupId = (groupId: string) =>
+  groupId.startsWith(DUAL_STEER_GROUP_SERVICE_ID + "-");
+
 export const subscriberAuthDTOSchema = z.object({
   authenticationManagementField: z.string().regex(/^[A-Fa-f0-9]{4}$/), // 16 bit hex string
   authenticationMethod: z.enum(["5G_AKA", "EAP_AKA_PRIME"]),
@@ -110,6 +127,8 @@ export const SnssaiConfigurationDTOSchema = z.object({
   isDefault: z.boolean(),
   chargingData: chargingDataDTOSchema,
   dnnConfigurations: z.record(DnnConfigurationDTOSchema),
+  dsGroupId: dualSteerGroupIdSchema.or(z.literal("")).optional(),
+  otherInternalGroupIds: z.array(z.string()).optional(),
 });
 
 interface SnssaiConfigurationDTO {
@@ -118,6 +137,10 @@ interface SnssaiConfigurationDTO {
   isDefault: boolean;
   chargingData: ChargingDataDTO;
   dnnConfigurations: { [key: string]: DnnConfigurationDTO };
+  // DualSteer group ID of this S-NSSAI, "" or absent if none.
+  dsGroupId?: string;
+  // Internal group IDs other than the DualSteer one, kept so that saving does not drop them.
+  otherInternalGroupIds?: string[];
 }
 
 
@@ -351,6 +374,8 @@ class SubscriptionMapperImpl implements SubscriptionMapper {
             } satisfies DnnConfigurationDTO,
           ]),
         ),
+        dsGroupId: s.internalGroupIds?.find(isDualSteerGroupId) ?? "",
+        otherInternalGroupIds: s.internalGroupIds?.filter((id) => !isDualSteerGroupId(id)) ?? [],
       })),
     };
   }
@@ -453,6 +478,11 @@ class SubscriptionMapperImpl implements SubscriptionMapper {
   buildSessionManagementSubscriptionData(
     data: SnssaiConfigurationDTO,
   ): SessionManagementSubscriptionData {
+    const internalGroupIds = [...(data.otherInternalGroupIds ?? [])];
+    if (data.dsGroupId) {
+      internalGroupIds.push(data.dsGroupId);
+    }
+
     return {
       singleNssai: {
         sst: data.sst,
@@ -464,6 +494,7 @@ class SubscriptionMapperImpl implements SubscriptionMapper {
           this.buildDnnConfiguration(value),
         ]),
       ),
+      internalGroupIds: internalGroupIds.length > 0 ? internalGroupIds : undefined,
     };
   }
 
@@ -558,6 +589,8 @@ export const defaultSubscriptionDTO = (): SubscriptionDTO => ({
           ],
         },
       },
+      dsGroupId: "",
+      otherInternalGroupIds: [],
     },
     {
       sst: 1,
@@ -595,6 +628,8 @@ export const defaultSubscriptionDTO = (): SubscriptionDTO => ({
           ],
         },
       },
+      dsGroupId: "",
+      otherInternalGroupIds: [],
     },
   ],
 });
@@ -609,6 +644,8 @@ export const defaultSnssaiConfiguration = (): SnssaiConfigurationDTO => ({
     unitCost: "1",
   },
   dnnConfigurations: { internet: defaultDnnConfig() },
+  dsGroupId: "",
+  otherInternalGroupIds: [],
 });
 
 export const defaultDnnConfig = (): DnnConfigurationDTO => ({

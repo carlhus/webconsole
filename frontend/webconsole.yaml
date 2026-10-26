@@ -401,6 +401,10 @@ components:
           $ref: "#/components/schemas/Nssai"
         dnnConfigurations:
           $ref: "#/components/schemas/DnnConfigurations"
+        internalGroupIds:
+          type: array
+          items:
+            type: string
     # PduSessionTypes
     # github.com/free5gc/openapi/models/model_pdu_session_types.go:PduSessionTypes
     PduSessionTypes:

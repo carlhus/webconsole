@@ -5,6 +5,7 @@ import {
   SubscriptionMapperImpl,
   SubscriptionDTO,
   defaultSubscriptionDTO,
+  subscriptionDTOSchema,
 } from "./subscription";
 import assert from "node:assert";
 
@@ -348,6 +349,45 @@ describe("SubscriptionDTO", ({ extend }) => {
       );
     });
   });
+  describe("subscription with DualSteer group ID", () => {
+    const dualSteerSubscription: Subscription = defaultSubscription();
+    dualSteerSubscription.SessionManagementSubscriptionData[0].internalGroupIds = [
+      "0000abcd-208-93-01",
+      "00004453-208-93-0a0b",
+    ];
+    const dualSteerDTO: SubscriptionDTO = defaultSubscriptionDTO();
+    dualSteerDTO.SnssaiConfigurations[0].dsGroupId = "00004453-208-93-0a0b";
+    dualSteerDTO.SnssaiConfigurations[0].otherInternalGroupIds = ["0000abcd-208-93-01"];
+
+    test("build", () => {
+      const subscriptionBuilder = new SubscriptionMapperImpl(new FlowsMapperImpl());
+      const subscription = subscriptionBuilder.mapFromDto(dualSteerDTO);
+      assert.deepEqual(JSON.parse(JSON.stringify(subscription)), dualSteerSubscription);
+    });
+    test("parse", () => {
+      const subscriptionBuilder = new SubscriptionMapperImpl(new FlowsMapperImpl());
+      const dto = subscriptionBuilder.mapFromSubscription(dualSteerSubscription);
+      assert.deepEqual(JSON.parse(JSON.stringify(dto)), dualSteerDTO);
+    });
+    test("reopening and saving keeps internalGroupIds", () => {
+      const subscriptionBuilder = new SubscriptionMapperImpl(new FlowsMapperImpl());
+      const reopened = subscriptionBuilder.mapFromSubscription(dualSteerSubscription);
+      const saved = new SubscriptionMapperImpl(new FlowsMapperImpl()).mapFromDto(reopened);
+      assert.deepEqual(saved.SessionManagementSubscriptionData[0].internalGroupIds, [
+        "0000abcd-208-93-01",
+        "00004453-208-93-0a0b",
+      ]);
+      assert.equal(saved.SessionManagementSubscriptionData[1].internalGroupIds, undefined);
+    });
+    test("build S-NSSAI without group ID fields, as after applying a profile", () => {
+      const dto = defaultSubscriptionDTO();
+      delete dto.SnssaiConfigurations[0].dsGroupId;
+      delete dto.SnssaiConfigurations[0].otherInternalGroupIds;
+      assert.equal(subscriptionDTOSchema.safeParse(dto).success, true);
+      const subscription = new SubscriptionMapperImpl(new FlowsMapperImpl()).mapFromDto(dto);
+      assert.deepEqual(JSON.parse(JSON.stringify(subscription)), defaultSubscription());
+    });
+  });
 
   describe("subscription read back without staticIpAddress", () => {
     // The backend omits an empty staticIpAddress, so a saved subscription comes back without it.
@@ -361,6 +401,31 @@ describe("SubscriptionDTO", ({ extend }) => {
         dto.SnssaiConfigurations[0].dnnConfigurations["internet"].enableStaticIpv4Address,
         false,
       );
+    });
+  });
+
+  describe("DualSteer group ID validation", () => {
+    const withGroupId = (dsGroupId: string) => {
+      const dto = defaultSubscriptionDTO();
+      dto.SnssaiConfigurations[0].dsGroupId = dsGroupId;
+      return dto;
+    };
+
+    test.each(["", "00004453-208-93-01", "00004453-466-001-0102030405060708090A"])(
+      "accepts %j",
+      (dsGroupId) => {
+        assert.equal(subscriptionDTOSchema.safeParse(withGroupId(dsGroupId)).success, true);
+      },
+    );
+    test.each([
+      "00004453-208-93",
+      "00004453-20-93-01",
+      "00004453-208-93-0",
+      "00004453-208-93-0102030405060708090a0b",
+      "0000abcd-208-93-01",
+      "dualsteer-1",
+    ])("rejects %j", (dsGroupId) => {
+      assert.equal(subscriptionDTOSchema.safeParse(withGroupId(dsGroupId)).success, false);
     });
   });
 });
