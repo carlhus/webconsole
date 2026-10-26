@@ -871,6 +871,12 @@ export interface SessionManagementSubscriptionData {
      * @memberof SessionManagementSubscriptionData
      */
     'dnnConfigurations'?: { [key: string]: DnnConfiguration; };
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof SessionManagementSubscriptionData
+     */
+    'internalGroupIds'?: Array<string>;
 }
 /**
  * 

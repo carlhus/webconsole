@@ -168,6 +168,25 @@ export default function SubscriberFormSessions() {
                     />
                   </TableCell>
                 </TableRow>
+                <TableRow>
+                  <TableCell colSpan={2}>
+                    <TextField
+                      {...register(`SnssaiConfigurations.${index}.dsGroupId`, {
+                        required: false,
+                      })}
+                      error={
+                        validationErrors.SnssaiConfigurations?.[index]?.dsGroupId !== undefined
+                      }
+                      helperText={
+                        validationErrors.SnssaiConfigurations?.[index]?.dsGroupId?.message ??
+                        "Optional, e.g. 00004453-208-93-01"
+                      }
+                      label="DualSteer Group ID"
+                      variant="outlined"
+                      fullWidth
+                    />
+                  </TableCell>
+                </TableRow>
               </TableBody>
               <TableBody id={toHex(row.sst) + row.sd + "-Default S-NSSAI"}>
                 <TableRow>

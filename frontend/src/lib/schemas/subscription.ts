@@ -224,6 +224,7 @@ export const pduSessionInfoSchema = z.object({
 export const sessionManagementSubscriptionDataSchema = z.object({
   singleNssai: nssaiSchema,
   dnnConfigurations: z.record(dnnConfigurationSchema).optional(),
+  internalGroupIds: z.array(z.string()).optional(),
 });
 
 export const smPolicyDataSchema = z.object({
