@@ -30,6 +30,10 @@ export const dualSteerGroupIdSchema = z
 const isDualSteerGroupId = (groupId: string) =>
   groupId.startsWith(DUAL_STEER_GROUP_SERVICE_ID + "-");
 
+// Returns the DualSteer group ID among an S-NSSAI's internal group IDs, "" if none.
+export const findDualSteerGroupId = (internalGroupIds: string[] | undefined): string =>
+  internalGroupIds?.find(isDualSteerGroupId) ?? "";
+
 export const subscriberAuthDTOSchema = z.object({
   authenticationManagementField: z.string().regex(/^[A-Fa-f0-9]{4}$/), // 16 bit hex string
   authenticationMethod: z.enum(["5G_AKA", "EAP_AKA_PRIME"]),
@@ -374,7 +378,7 @@ class SubscriptionMapperImpl implements SubscriptionMapper {
             } satisfies DnnConfigurationDTO,
           ]),
         ),
-        dsGroupId: s.internalGroupIds?.find(isDualSteerGroupId) ?? "",
+        dsGroupId: findDualSteerGroupId(s.internalGroupIds),
         otherInternalGroupIds: s.internalGroupIds?.filter((id) => !isDualSteerGroupId(id)) ?? [],
       })),
     };

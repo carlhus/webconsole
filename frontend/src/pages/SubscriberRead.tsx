@@ -26,6 +26,7 @@ import {
 import FlowRule from "./Component/FlowRule";
 import UpSecurity from "./Component/UpSecurity";
 import { toHex } from "../lib/utils";
+import { findDualSteerGroupId } from "../lib/dtos/subscription";
 import ChargingCfg from "./Component/ChargingCfg";
 
 export default function SubscriberRead() {
@@ -276,6 +277,12 @@ export default function SubscriberRead() {
                   <TableCell>
                     <Checkbox checked={isDefaultNssai(row.singleNssai)} />
                   </TableCell>
+                </TableRow>
+              </TableBody>
+              <TableBody>
+                <TableRow>
+                  <TableCell style={{ width: "40%" }}>DualSteer Group ID</TableCell>
+                  <TableCell>{findDualSteerGroupId(row.internalGroupIds)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
