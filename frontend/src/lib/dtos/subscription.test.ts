@@ -348,4 +348,19 @@ describe("SubscriptionDTO", ({ extend }) => {
       );
     });
   });
+
+  describe("subscription read back without staticIpAddress", () => {
+    // The backend omits an empty staticIpAddress, so a saved subscription comes back without it.
+    const readBack: Subscription = defaultSubscription();
+    delete readBack.SessionManagementSubscriptionData[0].dnnConfigurations!["internet"]
+      .staticIpAddress;
+
+    test("parse", () => {
+      const dto = new SubscriptionMapperImpl(new FlowsMapperImpl()).mapFromSubscription(readBack);
+      assert.equal(
+        dto.SnssaiConfigurations[0].dnnConfigurations["internet"].enableStaticIpv4Address,
+        false,
+      );
+    });
+  });
 });
